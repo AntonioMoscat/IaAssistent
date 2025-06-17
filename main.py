@@ -8,8 +8,7 @@ from llm_wrapper import LocalLLM
 from memory.memory import load_memory, save_memory
 from agent import dispatch
 from memory.semantic_memory import SemanticMemory
-from commands.registry import dispatch_semantic
-from commands import commands, match_command
+from commands.registry import dispatch_semantic_hybrid
 
 
 def is_ollama_running():
@@ -68,8 +67,8 @@ def main():
                     print("✅ Correzione registrata.")
                     continue
 
-            # 👇 Comando semantico (fallback se non è None)
-            response = dispatch_semantic(command)
+            # 👇 Comando semantico ibrido (fallback se non è None)
+            response = dispatch_semantic_hybrid(command)  # Cambiato qui
 
             # 👇 Comando da agent.py se non è un comando personalizzato
             if response is None:
