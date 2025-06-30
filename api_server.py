@@ -17,6 +17,8 @@ from memory.memory import load_memory, save_memory
 from agent import dispatch, get_available_commands
 from memory.semantic_memory import SemanticMemory
 from commands.registry import dispatch_semantic_hybrid
+from fastapi import WebSocket, WebSocketDisconnect
+from webSocket import WebSocketServerSingleton
 
 # Configurazione logging
 logging.basicConfig(level=logging.INFO)
@@ -140,7 +142,7 @@ app.add_middleware(
 )
 
 # === Endpoints ===
-@app.get("/status", response_model=StatusResponse)
+@app.get("/health", response_model=StatusResponse)
 def get_status():
     """Ottieni lo stato dell'assistente"""
     return StatusResponse(
@@ -148,6 +150,20 @@ def get_status():
         ollama_running=is_ollama_running(),
         available_commands=get_available_commands()
     )
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    ws_manager = WebSocketServerSingleton()
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            logger.info(f"📩 Messaggio ricevuto: {data}")
+            await ws_manager.broadcast(f"Echo: {data}")
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+        logger.info("🔌 Connessione WebSocket chiusa")
+
 
 @app.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest, background_tasks: BackgroundTasks):
@@ -170,8 +186,7 @@ def chat(request: ChatRequest, background_tasks: BackgroundTasks):
         # Fallback su LLM
         if response is None:
             context = sem_mem.search(command)
-            prompt = (f"Contesto precedente: {context}\nDomanda: {command}" 
-                     if context and context != command else command)
+            prompt = (f"Contesto precedente: {context}\nDomanda: {command}" if context and context != command else command)
             response = llm.respond(prompt)
             command_type = "llm"
         
@@ -217,4 +232,4 @@ def save_interaction(command: str, response: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("api_server:app", host="0.0.0.0", port=8000, reload=True)
